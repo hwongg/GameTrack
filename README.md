@@ -107,7 +107,7 @@ Los modelos Sequelize definen estas tablas en PostgreSQL:
 | `juegos` | `id` (PK), `title`, `description`, `platform`, `genre`, `cover_url`, `external_id`, `created_at`, `updated_at` | 1:N con `recomendaciones` |
 | `recomendaciones` | `id` (PK), `user_id` (FK), `game_id` (FK), `hours_played`, `status`, `favorite`, `score`, `created_at`, `updated_at` | N:1 con `usuarios` y N:1 con `juegos` |
 
-La combinación (`user_id`, `game_id`) es única en `recomendaciones`. Las asociaciones están configuradas con eliminación en cascada. El archivo editable del modelo relacional debe entregarse junto al código como `GameTrack-Modelo-Relacional.drawio`.
+La combinación (`user_id`, `game_id`) es única en `recomendaciones`. Las asociaciones están configuradas con eliminación en cascada. El modelo relacional editable está disponible en [`GameTrack-Modelo-Relacional.drawio`](GameTrack-Modelo-Relacional.drawio).
 
 > Este esquema corresponde a los modelos Sequelize del proyecto. Keycloak utiliza su propio almacenamiento interno, no representado en este modelo de negocio.
 
@@ -123,14 +123,15 @@ No es necesario instalar Node.js, Python ni PostgreSQL localmente para ejecutar 
 
 ## 7. Instalación en Windows PowerShell
 
-Desde la raíz del proyecto:
+Clonar el repositorio y preparar las variables de entorno:
 
 ```powershell
-cd C:\GameTrack
+git clone https://github.com/hwongg/GameTrack.git
+cd GameTrack
 Copy-Item .env.example .env
 ```
 
-Editar `.env` y sustituir los valores de ejemplo por secretos propios. Variables principales:
+El archivo `.env` contiene la configuración local de los servicios. Sus variables principales son:
 
 | Variable | Propósito |
 |---|---|
@@ -195,17 +196,17 @@ Las siguientes pruebas fueron realizadas durante el desarrollo en el entorno loc
 - `POST /api/auth/refresh` y `POST /api/auth/logout` con origen externo no autorizado → **403 Forbidden**.
 - Revisión visual de escritorio, tablet y móvil; se agregó navegación móvil tipo hamburguesa.
 
-**Alcance:** estas verificaciones prueban comportamientos concretos. No equivalen a una auditoría integral de seguridad ni a una certificación completa de protección CSRF. Se recomienda probar también la navegación móvil autenticada y las distintas pantallas de administración.
+Las verificaciones corresponden a pruebas funcionales realizadas en el entorno local de desarrollo; no constituyen una auditoría integral de seguridad.
 
-## 10. Seguridad y buenas prácticas
+## 10. Seguridad
 
-- No subir `.env`, tokens, contraseñas ni claves privadas al repositorio.
-- Mantener `.env.example` únicamente con valores ficticios.
-- Utilizar HTTPS y `COOKIE_SECURE=true` al desplegar fuera de un entorno local.
-- Los usuarios normales no deben disponer de operaciones de administración.
-- El acceso al servicio de IA está restringido mediante una clave interna.
-- Se utilizan Helmet, validaciones de entradas, limitación de solicitudes y restricciones CORS/origen según el servicio.
-- Antes de publicar, revisar el historial Git para descartar secretos previamente confirmados.
+- Las contraseñas de las cuentas locales se almacenan mediante hashes bcrypt.
+- La autenticación utiliza JWT y ofrece integración con Keycloak mediante OpenID Connect.
+- Las operaciones administrativas requieren autorización por rol.
+- El servicio de IA valida una clave de acceso interna.
+- Los servicios utilizan controles como Helmet, validación de entradas, limitación de solicitudes y restricciones CORS/origen, según corresponda.
+- Los secretos de configuración se mantienen fuera del repositorio mediante `.env`; el archivo `.env.example` contiene la plantilla de variables.
+- El despliegue documentado está orientado al entorno local de desarrollo. Para un entorno público se requiere HTTPS y una configuración de seguridad específica.
 
 ## 11. Estructura del repositorio
 
@@ -222,32 +223,13 @@ GameTrack/
 └── README.md           # Documentación
 ```
 
-## 12. Integrantes y colaboración
+## 12. Equipo de desarrollo
 
 - **Hansel Fabricio Wong Gamboa** — 2790-23-14113
 - **Luis Reynaldo De León Sopón** — 2790-22-581
 
-### Commits
+El historial de cambios y las contribuciones del proyecto se encuentran disponibles en la sección **Commits** del repositorio de GitHub.
 
-El proyecto se desarrolla en equipo de **dos integrantes**. Para documentar la colaboración, cada integrante debe utilizar su propia identidad de Git y realizar commits de cambios que realmente haya desarrollado. Los mensajes deben respetar la convención enseñada en clase; si corresponde a *Conventional Commits*, ejemplos de formato son `feat: ...`, `fix: ...`, `docs: ...` y `test: ...`.
+## 13. Contenido de la entrega
 
-Comandos de verificación:
-
-```powershell
-git log --oneline --all --decorate
-git shortlog -sne --all
-git status
-```
-
-No crear commits ficticios ni modificar la autoría de contribuciones existentes para aparentar participación.
-
-## 13. Entregables académicos
-
-1. Código fuente completo de todos los microservicios y archivos Docker necesarios.
-2. Modelo relacional editable de PostgreSQL.
-3. Este `README.md` con descripción, funcionalidades de cada microservicio, instalación y diagrama de arquitectura.
-4. Historial real de commits de los dos integrantes del equipo.
-
----
-
-**Nota de versión:** documentación actualizada a partir de `GameTrack(5).zip` y de las mejoras recientes. La funcionalidad debe verificarse en el entorno Docker antes de la entrega. El balanceo de dos réplicas del backend no elimina todos los puntos únicos de fallo ni constituye por sí solo alta disponibilidad completa.
+El repositorio reúne el código fuente de los microservicios, los archivos de configuración y despliegue con Docker Compose, el modelo relacional editable y la documentación de arquitectura y funcionalidades.
