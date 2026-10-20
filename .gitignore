@@ -9,3 +9,7 @@ dist/
 **/dist/
 .vite/
 *.log
+# Documentos internos del desarrollo
+CAMBIOS-Y-PENDIENTES.md
+INSTRUCCIONES-*.md
+LEEME-ANTES-DE-INICIAR.txt
