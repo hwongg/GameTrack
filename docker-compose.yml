@@ -1,0 +1,145 @@
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - redis_data:/data
+    networks: [gametrack_net]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-gametrack}
+      POSTGRES_USER: ${POSTGRES_USER:-gametrack_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks: [gametrack_net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-gametrack_user} -d ${POSTGRES_DB:-gametrack}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DB_HOST: db
+      AI_SERVICE_URL: http://ai-service:8000
+      TRANSLATE_URL: http://translate:5000/translate
+      REDIS_URL: redis://redis:6379
+    expose: ["3001"]
+    depends_on:
+      db:
+        condition: service_healthy
+      ai-service:
+        condition: service_started
+      translate:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    networks: [gametrack_net]
+
+  backend2:
+    build: ./backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DB_HOST: db
+      AI_SERVICE_URL: http://ai-service:8000
+      TRANSLATE_URL: http://translate:5000/translate
+      REDIS_URL: redis://redis:6379
+    expose: ["3001"]
+    depends_on:
+      db:
+        condition: service_healthy
+      ai-service:
+        condition: service_started
+      translate:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    networks: [gametrack_net]
+
+  auth-service:
+    build: ./auth-service
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_HOST: db
+      OIDC_PUBLIC_URL: http://localhost:3000/identity
+      OIDC_INTERNAL_URL: http://keycloak:8080/identity
+    expose: ["3002"]
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [gametrack_net]
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    command: ["start-dev", "--import-realm", "--http-relative-path=/identity", "--hostname=http://localhost:3000/identity", "--proxy-headers=xforwarded"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?Define KEYCLOAK_ADMIN_PASSWORD en .env}
+    volumes:
+      - ./keycloak:/opt/keycloak/data/import:ro
+      - keycloak_data:/opt/keycloak/data
+    ports:
+      - "8080:8080"
+    networks: [gametrack_net]
+
+  proxy:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    volumes:
+      - ./proxy/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "3000:80"
+    depends_on: [frontend, backend, backend2, auth-service, keycloak]
+    networks: [gametrack_net]
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    expose: ["80"]
+    depends_on: [backend]
+    networks: [gametrack_net]
+
+  translate:
+    image: libretranslate/libretranslate:latest
+    restart: unless-stopped
+    environment:
+      LT_LOAD_ONLY: "en,es,ja,fr,de,pt,ru,zh"
+      LT_UPDATE_MODELS: "false"
+    expose: ["5000"]
+    networks: [gametrack_net]
+
+  ai-service:
+    build: ./ai-service
+    restart: unless-stopped
+    environment:
+      AI_SERVICE_API_KEY: ${AI_SERVICE_API_KEY:?Define AI_SERVICE_API_KEY en .env}
+    expose: ["8000"]
+    networks: [gametrack_net]
+
+volumes:
+  redis_data:
+  postgres_data:
+  keycloak_data:
+
+networks:
+  gametrack_net:
+    driver: bridge
