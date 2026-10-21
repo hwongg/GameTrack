@@ -181,6 +181,22 @@ docker compose down
 
 No utilizar `docker compose down -v` si se desea conservar la base de datos y la configuración persistida de Keycloak.
 
+### Pruebas automatizadas del backend
+
+Las pruebas del backend usan el ejecutor nativo de Node.js (`node --test`). No necesitan Docker, base de datos ni conexión a Internet, porque simulan los modelos y los servicios externos (RAWG y traducción). Requieren Node.js instalado localmente (probado con Node.js v24).
+
+```powershell
+cd backend
+npm install
+npm test
+```
+
+Con la versión actual, el resultado esperado es de 34 pruebas aprobadas y 0 fallos. Los archivos están en `backend/tests/`:
+
+- `helpers/setup.js`: utilidades compartidas (token de prueba, servidor temporal y simulación de módulos).
+- `games.test.js`: rutas de `/api/games`.
+- `library.test.js`: rutas de `/api/library`.
+
 ## 9. Verificaciones realizadas
 
 Las siguientes pruebas fueron realizadas durante el desarrollo en el entorno local:
