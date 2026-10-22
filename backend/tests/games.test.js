@@ -112,6 +112,22 @@ describe('Rutas /api/games', () => {
       const res = await call(server.baseUrl, 'PUT', '/api/games/abc', { token: userToken, body: { title: 'Nuevo' } });
       assert.equal(res.status, 403);
     });
+
+    test('devuelve 400 si el título está vacío', async () => {
+      const update = mock.fn(async () => { });
+      Game.findByPk = mock.fn(async () => ({ update }));
+      const res = await call(server.baseUrl, 'PUT', '/api/games/abc', { token: adminToken, body: { title: '' } });
+      assert.equal(res.status, 400);
+      assert.equal(update.mock.callCount(), 0);
+    });
+
+    test('devuelve 400 si coverUrl no es una URL http(s)', async () => {
+      const update = mock.fn(async () => { });
+      Game.findByPk = mock.fn(async () => ({ update }));
+      const res = await call(server.baseUrl, 'PUT', '/api/games/abc', { token: adminToken, body: { coverUrl: 'no-es-url' } });
+      assert.equal(res.status, 400);
+      assert.equal(update.mock.callCount(), 0);
+    });
   });
 
   describe('DELETE /:id', () => {
@@ -126,7 +142,7 @@ describe('Rutas /api/games', () => {
     });
 
     test('devuelve 204 y elimina el juego existente', async () => {
-      const destroy = mock.fn(async () => {});
+      const destroy = mock.fn(async () => { });
       Game.findByPk = mock.fn(async () => ({ destroy }));
       const res = await call(server.baseUrl, 'DELETE', '/api/games/abc', { token: adminToken });
       assert.equal(res.status, 204);

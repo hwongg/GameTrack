@@ -88,6 +88,12 @@ describe('Rutas /api/library', () => {
       assert.equal(args.defaults.status, 'pendiente');
       assert.equal(args.defaults.hoursPlayed, 0);
     });
+
+    test('guarda favorite al crear el registro', async () => {
+      await call(server.baseUrl, 'POST', '/api/library', { token, body: { gameId: GAME_ID, favorite: true } });
+      const args = Recommendation.findOrCreate.mock.calls[0].arguments[0];
+      assert.equal(args.defaults.favorite, true);
+    });
   });
 
   describe('PATCH /:id', () => {
@@ -113,7 +119,7 @@ describe('Rutas /api/library', () => {
     });
 
     test('actualiza solo los campos enviados', async () => {
-      const update = mock.fn(async () => {});
+      const update = mock.fn(async () => { });
       Recommendation.findOne = mock.fn(async () => ({ id: 'r1', update }));
       const res = await call(server.baseUrl, 'PATCH', '/api/library/r1', { token, body: { status: 'jugando' } });
       assert.equal(res.status, 200);
@@ -128,7 +134,7 @@ describe('Rutas /api/library', () => {
     });
 
     test('devuelve 204 y elimina el registro', async () => {
-      const destroy = mock.fn(async () => {});
+      const destroy = mock.fn(async () => { });
       Recommendation.findOne = mock.fn(async () => ({ destroy }));
       const res = await call(server.baseUrl, 'DELETE', '/api/library/r1', { token });
       assert.equal(res.status, 204);

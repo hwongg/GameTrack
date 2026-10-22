@@ -18,7 +18,7 @@ router.post('/', body('gameId').isUUID(), body('status').optional().isIn(['pendi
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
     if (!(await Game.findByPk(req.body.gameId))) return res.status(404).json({ error: 'Juego no encontrado.' });
-    const [item, created] = await Recommendation.findOrCreate({ where: { userId: req.user.sub, gameId: req.body.gameId }, defaults: { userId: req.user.sub, gameId: req.body.gameId, status: req.body.status || 'pendiente', hoursPlayed: req.body.hoursPlayed || 0 } });
+    const [item, created] = await Recommendation.findOrCreate({ where: { userId: req.user.sub, gameId: req.body.gameId }, defaults: { userId: req.user.sub, gameId: req.body.gameId, status: req.body.status || 'pendiente', hoursPlayed: req.body.hoursPlayed || 0, favorite: req.body.favorite ?? false } });
     if (!created) return res.status(409).json({ error: 'El juego ya está en tu biblioteca.' });
     res.status(201).json(item);
   } catch (err) { next(err); }
