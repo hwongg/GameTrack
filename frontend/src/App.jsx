@@ -1058,8 +1058,8 @@ export default function App() {
 
             <div className="mb-5 flex flex-wrap gap-2">
               <button
-                className={`filter-chip ${status === 'Todos' ? 'filter-chip-active' : ''}`}
-                onClick={() => setStatus('Todos')}
+                className={`filter-chip ${status === 'Todos' && !favoritesOnly ? 'filter-chip-active' : ''}`}
+                onClick={() => { setStatus('Todos'); setFavoritesOnly(false); }}
               >
                 Todos
               </button>
@@ -1068,14 +1068,14 @@ export default function App() {
                 <button
                   key={value}
                   className={`filter-chip ${status === value ? 'filter-chip-active' : ''}`}
-                  onClick={() => setStatus(value)}
+                  onClick={() => { setStatus(value); setFavoritesOnly(false); }}
                 >
                   {value[0].toUpperCase() + value.slice(1)}
                 </button>
               ))}
               <button
                 className={`filter-chip ${favoritesOnly ? 'filter-chip-active' : ''}`}
-                onClick={() => setFavoritesOnly(value => !value)}
+                onClick={() => { setStatus('Todos'); setFavoritesOnly(value => !value); }}
               >
                 <Star size={14} /> Favoritos
               </button>
@@ -1113,7 +1113,7 @@ export default function App() {
             ) : (
               <div className="space-y-3">
                 {library
-                  .filter(item => status === 'Todos' || item.status === status)
+                  .filter(item => favoritesOnly || status === 'Todos' || item.status === status)
                   .filter(item => !favoritesOnly || item.favorite)
                   .sort((a, b) => {
                     if (librarySort === 'horas') return Number(b.hoursPlayed || 0) - Number(a.hoursPlayed || 0);
