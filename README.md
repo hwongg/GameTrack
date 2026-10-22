@@ -191,7 +191,7 @@ npm install
 npm test
 ```
 
-Con la versión actual, el resultado esperado es de 34 pruebas aprobadas y 0 fallos. Los archivos están en `backend/tests/`:
+Con la versión actual, el resultado esperado es de 39 pruebas aprobadas y 0 fallos. Los archivos están en `backend/tests/`:
 
 - `helpers/setup.js`: utilidades compartidas (token de prueba, servidor temporal y simulación de módulos).
 - `games.test.js`: rutas de `/api/games`.
@@ -228,15 +228,16 @@ Las verificaciones corresponden a pruebas funcionales realizadas en el entorno l
 
 ```text
 GameTrack/
-├── ai-service/         # FastAPI y motor de recomendaciones
-├── auth-service/       # Autenticación local, JWT y OIDC
-├── backend/            # Catálogo, biblioteca y recomendaciones
-├── frontend/           # Interfaz React y Tailwind
-├── keycloak/           # Importación del realm
-├── proxy/              # Configuración Nginx y balanceo
-├── docker-compose.yml  # Orquestación
-├── .env.example        # Plantilla de configuración
-└── README.md           # Documentación
+├── ai-service/                         # FastAPI y motor de recomendaciones
+├── auth-service/                       # Autenticación local, JWT y OIDC
+├── backend/                            # Catálogo, biblioteca y recomendaciones
+├── frontend/                           # Interfaz React y Tailwind
+├── keycloak/                           # Importación del realm
+├── proxy/                              # Configuración Nginx y balanceo
+├── GameTrack-Modelo-Relacional.drawio  # Modelo relacional editable
+├── docker-compose.yml                  # Orquestación
+├── .env.example                        # Plantilla de configuración
+└── README.md                           # Documentación
 ```
 
 ## 12. Equipo de desarrollo
