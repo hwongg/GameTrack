@@ -49,6 +49,38 @@ export default function App() {
   const [addingGameId, setAddingGameId] = useState(null);
   const [addedGameIds, setAddedGameIds] = useState(new Set());
 
+  // Bloquear la página detrás del modal y conservar su posición de desplazamiento.
+  useEffect(() => {
+    if (!showAuth) return;
+
+    const scrollY = window.scrollY;
+    const body = document.body;
+    const previous = {
+      position: body.style.position,
+      top: body.style.top,
+      left: body.style.left,
+      right: body.style.right,
+      width: body.style.width,
+      overflow: body.style.overflow,
+    };
+
+    body.style.position = 'fixed';
+    body.style.top = `-${scrollY}px`;
+    body.style.left = '0';
+    body.style.right = '0';
+    body.style.width = '100%';
+    body.style.overflow = 'hidden';
+
+    return () => {
+      Object.assign(body.style, previous);
+      const root = document.documentElement;
+      const previousScrollBehavior = root.style.scrollBehavior;
+      root.style.scrollBehavior = 'auto';
+      window.scrollTo(0, scrollY);
+      root.style.scrollBehavior = previousScrollBehavior;
+    };
+  }, [showAuth]);
+
   // Ocultar los avisos automáticamente después de cinco segundos.
   useEffect(() => {
     if (!notice) return;
@@ -1378,11 +1410,11 @@ export default function App() {
 
       {showAuth && (
         <div
-          className="modal-backdrop"
+          className="modal-backdrop !overflow-hidden overscroll-contain"
           onClick={() => setShowAuth(false)}
         >
           <div
-            className="modal-panel relative overflow-hidden border border-violet-400/20 shadow-2xl shadow-violet-950/40"
+            className="modal-panel relative max-h-[calc(100dvh-40px)] overflow-y-auto overscroll-contain border border-violet-400/20 shadow-2xl shadow-violet-950/40"
             role="dialog"
             aria-modal="true"
             aria-labelledby="auth-title"
