@@ -21,7 +21,7 @@ export default function App() {
   const [games, setGames] = useState([]);
   const [manualGames, setManualGames] = useState([]);
   const [editingGame, setEditingGame] = useState(null);
-  const [gameForm, setGameForm] = useState({ title: '', platform: 'PC', genre: '', description: '', coverUrl: '' });
+  const [gameForm, setGameForm] = useState({ title: '', platform: '', genre: '', description: '', coverUrl: '', developer: '', publisher: '', screenshots: [] });
   const [library, setLibrary] = useState([]);
   const [recommendations, setRecommendations] = useState([]);
   const [user, setUser] = useState(null);
@@ -35,7 +35,6 @@ export default function App() {
   const [sortOrder, setSortOrder] = useState('-rating');
   const [status, setStatus] = useState('Todos');
   const [favoritesOnly, setFavoritesOnly] = useState(false);
-  const [librarySort, setLibrarySort] = useState('titulo');
   const [notice, setNotice] = useState('');
   const [authMode, setAuthMode] = useState('login');
   const [auth, setAuth] = useState({ name: '', email: '', password: '' });
@@ -132,7 +131,12 @@ export default function App() {
   }, [token]);
 
   async function loadManualGames() {
-    try { const data = await api('/games?limit=100'); setManualGames(data.items || []); }
+    try {
+      const data = await api('/games?limit=100');
+      setManualGames((data.items || []).filter(game =>
+        !String(game.externalId || game.external_id || '').startsWith('rawg:')
+      ));
+    }
     catch (error) { setNotice(error.message); }
   }
 
@@ -143,27 +147,59 @@ export default function App() {
         method: editingGame ? 'PUT' : 'POST', body: JSON.stringify(gameForm)
       });
       setEditingGame(null);
-      setGameForm({ title: '', platform: 'PC', genre: '', description: '', coverUrl: '' });
+      setGameForm({ title: '', platform: '', genre: '', description: '', coverUrl: '', developer: '', publisher: '', screenshots: [] });
       await loadManualGames();
+      await searchGlobal(query, platform, sortOrder);
       setNotice('Videojuego guardado correctamente.');
     } catch (error) { setNotice(error.message); }
   }
 
   async function deleteManualGame(id) {
     if (!window.confirm('¿Eliminar este videojuego del catálogo local?')) return;
-    try { await api(`/games/${id}`, { method: 'DELETE' }); await loadManualGames(); }
+    try { await api(`/games/${id}`, { method: 'DELETE' }); await loadManualGames(); await searchGlobal(query, platform, sortOrder); }
     catch (error) { setNotice(error.message); }
+  }
+
+  // Unir el catálogo local con RAWG; el registro administrado tiene prioridad.
+  function mergeCatalog(localItems, rawgItems, searchText = '', selectedPlatform = 'Todas') {
+    const normalize = value => String(value || '').normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+    const search = normalize(searchText);
+    const local = localItems.filter(game =>
+      !String(game.externalId || '').startsWith('rawg:') &&
+      (!search || normalize(game.title).includes(search)) &&
+      (selectedPlatform === 'Todas' || normalize(game.platform).includes(normalize(selectedPlatform)))
+    );
+    const titles = new Set(local.map(game => normalize(game.title)));
+    return [...local, ...rawgItems.filter(game => !titles.has(normalize(game.title)))];
+  }
+
+  async function fetchUnifiedCatalog(searchText = '', selectedPlatform = 'Todas', selectedSort = sortOrder) {
+    const params = new URLSearchParams({ pageSize: '30', ordering: selectedSort });
+    if (searchText.trim()) params.set('search', searchText.trim());
+    if (selectedPlatform !== 'Todas') params.set('platform', selectedPlatform);
+
+    const [localResult, rawgResult] = await Promise.allSettled([
+      api('/games?limit=100'),
+      api(`/games/global?${params.toString()}`)
+    ]);
+    if (localResult.status === 'rejected' && rawgResult.status === 'rejected') {
+      throw new Error('No fue posible cargar el catálogo de videojuegos.');
+    }
+    const local = localResult.status === 'fulfilled' ? (localResult.value.items || []) : [];
+    const rawg = rawgResult.status === 'fulfilled' ? (rawgResult.value.items || []) : [];
+    return mergeCatalog(local, rawg, searchText, selectedPlatform);
   }
 
   async function loadGames() {
     try {
-      const data = await api(`/games/global?pageSize=30&ordering=${encodeURIComponent(sortOrder)}`);
-      setGlobalGames(data.items || []);
-      setGames(data.items || []);
+      const items = await fetchUnifiedCatalog();
+      setGlobalGames(items);
+      setGames(items);
       setGlobalSearch(true);
       setActiveSearch('');
     } catch (error) {
-      setNotice(error.message || 'No fue posible cargar el catálogo en línea.');
+      setNotice(error.message || 'No fue posible cargar el catálogo.');
     }
   }
 
@@ -337,30 +373,13 @@ export default function App() {
   async function searchGlobal(searchText = query, selectedPlatform = platform, selectedSort = sortOrder) {
     setGlobalLoading(true);
     setNotice('');
-
     try {
-      const params = new URLSearchParams();
-      if (searchText.trim()) {
-        params.set('search', searchText.trim());
-      }
-
-      if (selectedPlatform !== 'Todas') {
-        params.set('platform', selectedPlatform);
-      }
-
-      params.set('pageSize', '30');
-      params.set('ordering', selectedSort);
-
-      const data = await api(`/games/global?${params.toString()}`);
-
-      setGlobalGames(data.items || []);
-      setGames(data.items || []);
+      const items = await fetchUnifiedCatalog(searchText, selectedPlatform, selectedSort);
+      setGlobalGames(items);
+      setGames(items);
       setGlobalSearch(true);
       setActiveSearch(searchText.trim());
-
-      if (!(data.items || []).length) {
-        setNotice('No se encontraron juegos con esa búsqueda y plataforma.');
-      }
+      if (!items.length) setNotice('No se encontraron juegos con esa búsqueda y plataforma.');
     } catch (error) {
       setNotice(error.message);
     } finally {
@@ -767,22 +786,41 @@ export default function App() {
           <section className="rounded-2xl border border-white/10 p-6 mb-8">
             <h2 className="text-2xl font-bold mb-4">Administrar catálogo local</h2>
             <form onSubmit={saveManualGame} className="grid gap-3 max-w-xl">
-              {['title', 'platform', 'genre', 'description', 'coverUrl'].map(field => (
+              {['title', 'platform', 'genre', 'description', 'developer', 'publisher', 'coverUrl'].map(field => (
                 <label key={field} className="grid gap-1 text-sm">
-                  {({title:'Título',platform:'Plataforma',genre:'Género',description:'Descripción',coverUrl:'URL de portada'})[field]}
+                  {({title:'Título',platform:'Plataforma',genre:'Género',description:'Descripción',developer:'Desarrollador',publisher:'Distribuidor',coverUrl:'URL de portada'})[field]}
                   <input className="rounded-lg bg-zinc-800 p-3 text-white" value={gameForm[field]} required={['title','platform','genre'].includes(field)} onChange={e => setGameForm(previous => ({...previous,[field]:e.target.value}))} />
                 </label>
               ))}
+              <div className="grid gap-2 text-sm">
+                <span>Capturas del juego (hasta 8 imágenes JPG, PNG o WebP; máximo 1 MB cada una)</span>
+                <input type="file" accept="image/jpeg,image/png,image/webp" multiple className="rounded-lg bg-zinc-800 p-3 text-white" onChange={async event => {
+                  const files = Array.from(event.target.files || []);
+                  if (files.length + gameForm.screenshots.length > 8) { setNotice('Máximo 8 capturas por juego.'); event.target.value = ''; return; }
+                  if (files.some(file => file.size > 1024 * 1024 || !['image/jpeg','image/png','image/webp'].includes(file.type))) { setNotice('Cada captura debe ser JPG, PNG o WebP de hasta 1 MB.'); event.target.value = ''; return; }
+                  try {
+                    const images = await Promise.all(files.map(file => new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file); })));
+                    setGameForm(previous => ({ ...previous, screenshots: [...previous.screenshots, ...images].slice(0,8) }));
+                  } catch { setNotice('No fue posible leer las capturas.'); }
+                  event.target.value = '';
+                }} />
+                {gameForm.screenshots.length > 0 && <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {gameForm.screenshots.map((src, index) => <div key={index} className="relative">
+                    <img src={src} alt={`Captura ${index + 1}`} className="aspect-video w-full rounded-lg object-cover" />
+                    <button type="button" className="absolute right-1 top-1 rounded bg-red-700 px-2 py-1 text-xs text-white" onClick={() => setGameForm(previous => ({ ...previous, screenshots: previous.screenshots.filter((_, i) => i !== index) }))}>Quitar</button>
+                  </div>)}
+                </div>}
+              </div>
               <div className="flex gap-2">
                 <button className="primary-button" type="submit">{editingGame ? 'Guardar cambios' : 'Agregar juego'}</button>
-                {editingGame && <button type="button" className="nav-button" onClick={() => {setEditingGame(null);setGameForm({title:'',platform:'PC',genre:'',description:'',coverUrl:''});}}>Cancelar</button>}
+                {editingGame && <button type="button" className="nav-button" onClick={() => {setEditingGame(null);setGameForm({ title: '', platform: '', genre: '', description: '', coverUrl: '', developer: '', publisher: '', screenshots: [] });}}>Cancelar</button>}
               </div>
             </form>
             <div className="mt-6 grid gap-2">
               {manualGames.map(game => <div key={game.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-zinc-800 p-3">
                 <span>{game.title} · {game.platform}</span>
                 <div className="flex gap-2">
-                  <button className="nav-button" onClick={() => {setEditingGame(game.id);setGameForm({title:game.title,platform:game.platform,genre:game.genre,description:game.description||'',coverUrl:game.coverUrl||''});}}>Editar</button>
+                  <button className="nav-button" onClick={() => {setEditingGame(game.id);setGameForm({title:game.title,platform:game.platform,genre:game.genre,description:game.description||'',coverUrl:game.coverUrl||'',developer:game.developer||'',publisher:game.publisher||'',screenshots:game.screenshots||[]});}}>Editar</button>
                   <button className="nav-button" onClick={() => deleteManualGame(game.id)}>Eliminar</button>
                 </div>
               </div>)}
@@ -840,7 +878,7 @@ export default function App() {
                 </div>
 
                 <span className="text-sm text-zinc-500">
-                  {`${visibleGames.length} resultados en línea`}
+                  {`${visibleGames.length} videojuegos encontrados`}
                 </span>
               </div>
 
@@ -921,7 +959,7 @@ export default function App() {
                     </>
                   ) : (
                     <>
-                      Buscar videojuegos en línea
+                      Buscar videojuegos
                       <Search size={16} />
                     </>
                   )}
@@ -930,7 +968,7 @@ export default function App() {
   
 
                 <span className="self-center text-xs text-zinc-500">
-                  {'Catálogo en línea · Fuente: RAWG'}
+                  {'Catálogo unificado · GameTrack + RAWG'}
                 </span>
               </div>
 
@@ -1004,7 +1042,7 @@ export default function App() {
                         </h3>
 
                         <p className="mt-1 line-clamp-2 text-xs leading-5 text-zinc-500">
-                          {game.description || 'Agrega este juego a tu biblioteca.'}
+                          {'Agrega este juego a tu biblioteca.'}
                         </p>
                       </div>
                     </article>
@@ -1081,15 +1119,6 @@ export default function App() {
               </button>
             </div>
 
-            <div className="mb-5 flex flex-wrap items-center gap-3">
-              <label htmlFor="library-sort" className="text-sm text-zinc-300">Ordenar biblioteca:</label>
-              <select id="library-sort" value={librarySort} onChange={event => setLibrarySort(event.target.value)} className="rounded-lg bg-zinc-800 px-3 py-2 text-white">
-                <option value="titulo">Título (A-Z)</option>
-                <option value="horas">Más horas jugadas</option>
-                <option value="estado">Estado</option>
-                <option value="fecha">Agregados recientemente</option>
-              </select>
-            </div>
 
             {!token ? (
               <div className="empty-panel">
@@ -1115,12 +1144,7 @@ export default function App() {
                 {library
                   .filter(item => favoritesOnly || status === 'Todos' || item.status === status)
                   .filter(item => !favoritesOnly || item.favorite)
-                  .sort((a, b) => {
-                    if (librarySort === 'horas') return Number(b.hoursPlayed || 0) - Number(a.hoursPlayed || 0);
-                    if (librarySort === 'estado') return String(a.status).localeCompare(String(b.status), 'es');
-                    if (librarySort === 'fecha') return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
-                    return String(a.Game?.title || '').localeCompare(String(b.Game?.title || ''), 'es');
-                  })
+                  .sort((a, b) => String(a.Game?.title || '').localeCompare(String(b.Game?.title || ''), 'es'))
                   .map(item => (
                     <div
                       key={item.id}

@@ -98,33 +98,40 @@ router.post('/import', authenticate,
   }
 );
 
+const validateScreenshots = body('screenshots').optional().custom(value => {
+  if (!Array.isArray(value) || value.length > 8) throw new Error('Máximo 8 capturas.');
+  if (!value.every(src => typeof src === 'string' && src.length <= 1400000 && /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(src))) throw new Error('Las capturas deben ser imágenes JPG, PNG o WebP de hasta 1 MB.');
+  return true;
+});
+
 router.post('/', authenticate, requireAdmin,
   body('title').isString().trim().isLength({ min: 1, max: 160 }),
   body('platform').isString().trim().isLength({ min: 1, max: 1000 }),
-  body('genre').isString().trim().isLength({ min: 1, max: 80 }),
+  body('genre').isString().trim().isLength({ min: 1, max: 500 }),
   body('description').optional({ nullable: true }).isString().isLength({ max: 5000 }),
   body('coverUrl').optional({ nullable: true }).isURL({ protocols: ['http', 'https'], require_protocol: true }).isLength({ max: 1000 }),
+  body('developer').optional({ nullable: true }).isString().isLength({ max: 200 }),
+  body('publisher').optional({ nullable: true }).isString().isLength({ max: 200 }),
+  validateScreenshots,
   async (req, res, next) => {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
-      const game = await Game.create({ title: req.body.title, platform: req.body.platform, genre: req.body.genre, description: req.body.description || null, coverUrl: req.body.coverUrl || null, externalId: req.body.externalId || null });
+      const game = await Game.create({ title: req.body.title, platform: req.body.platform, genre: req.body.genre, description: req.body.description || null, coverUrl: req.body.coverUrl || null, externalId: req.body.externalId || null, developer: req.body.developer || null, publisher: req.body.publisher || null, screenshots: req.body.screenshots || [] });
       res.status(201).json(game);
     } catch (err) { next(err); }
   }
 );
 
-router.put('/:id', authenticate, requireAdmin,
-  body('title').optional().isString().trim().isLength({ min: 1, max: 160 }),
-  body('platform').optional().isString().trim().isLength({ min: 1, max: 1000 }),
-  body('genre').optional().isString().trim().isLength({ min: 1, max: 80 }),
-  body('description').optional({ nullable: true }).isString().isLength({ max: 5000 }),
-  body('coverUrl').optional({ nullable: true }).isURL({ protocols: ['http', 'https'], require_protocol: true }).isLength({ max: 1000 }),
-  async (req, res, next) => {
+router.put('/:id', authenticate, requireAdmin, async (req, res, next) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
-    const allowed = ['title', 'platform', 'genre', 'description', 'coverUrl', 'externalId'];
+    const allowed = ['title', 'platform', 'genre', 'description', 'coverUrl', 'externalId', 'developer', 'publisher', 'screenshots'];
+    if (req.body.screenshots !== undefined) {
+      const check = validationResult(req);
+      if (!check.isEmpty()) return res.status(400).json({ errors: check.array() });
+      const captures = req.body.screenshots;
+      if (!Array.isArray(captures) || captures.length > 8 || !captures.every(src => typeof src === 'string' && src.length <= 1400000 && /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(src))) return res.status(400).json({ error: 'Capturas inválidas (máximo 8 imágenes JPG/PNG/WebP de 1 MB).' });
+    }
     const data = Object.fromEntries(Object.entries(req.body).filter(([key]) => allowed.includes(key)));
     if (!Object.keys(data).length) return res.status(400).json({ error: 'No hay campos válidos para actualizar.' });
     const game = await Game.findByPk(req.params.id);

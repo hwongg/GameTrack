@@ -16,6 +16,9 @@ const Game = sequelize.define('Game', {
   platform: { type: DataTypes.TEXT, allowNull: false },
   genre: { type: DataTypes.STRING(80), allowNull: false },
   coverUrl: { type: DataTypes.STRING(1000), allowNull: true, field: 'cover_url' },
+  developer: { type: DataTypes.STRING(200), allowNull: true },
+  publisher: { type: DataTypes.STRING(200), allowNull: true },
+  screenshots: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
   externalId: { type: DataTypes.STRING(100), allowNull: true, field: 'external_id' }
 }, { tableName: 'juegos', underscored: true });
 

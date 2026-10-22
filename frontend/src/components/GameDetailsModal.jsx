@@ -15,38 +15,12 @@ export default function GameDetailsModal({ game, onClose, onAdd }) {
   const [details, setDetails] = useState(null);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
-  const [translating, setTranslating] = useState(false);
-
-  // Bloquear el scroll de la pagina mientras los detalles esten abiertos.
-  useEffect(() => {
-    const body = document.body;
-    const html = document.documentElement;
-    const previousBodyOverflow = body.style.overflow;
-    const previousHtmlOverflow = html.style.overflow;
-    const previousBodyPaddingRight = body.style.paddingRight;
-    const scrollbarWidth = window.innerWidth - html.clientWidth;
-
-    body.style.overflow = 'hidden';
-    html.style.overflow = 'hidden';
-    if (scrollbarWidth > 0) {
-      body.style.paddingRight = `${scrollbarWidth}px`;
-    }
-
-    return () => {
-      body.style.overflow = previousBodyOverflow;
-      html.style.overflow = previousHtmlOverflow;
-      body.style.paddingRight = previousBodyPaddingRight;
-    };
-  }, []);
-
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadDetails() {
       setLoading(true);
-      setTranslating(false);
-      setDetails(null);
 
       const result = {
         synopsis:
@@ -56,29 +30,69 @@ export default function GameDetailsModal({ game, onClose, onAdd }) {
       };
 
       const externalId = String(game.externalId || game.external_id || game.id || '');
+      const isRawgGame = externalId.startsWith('rawg:');
+
+      // Los registros manuales tienen su propia descripción en PostgreSQL.
+      // No buscar en RAWG por título: puede ocultar o reemplazar esos datos.
+      if (!isRawgGame && game.description?.trim()) {
+        result.synopsis = game.description;
+        result.description = game.description;
+        result.developer = game.developer || null;
+        result.publisher = game.publisher || null;
+        result.screenshots = Array.isArray(game.screenshots) && game.screenshots.length
+          ? game.screenshots
+          : ((game.coverUrl || game.cover_url) ? [game.coverUrl || game.cover_url] : []);
+        if (!cancelled) {
+          setDetails(result);
+          setLoading(false);
+        }
+        return;
+      }
+
       try {
-        // El mismo endpoint en catálogo, biblioteca y sugerencias de IA.
-        const path = externalId.startsWith('rawg:')
+        // Los juegos de RAWG tienen una ruta independiente para traducir.
+        const path = isRawgGame
           ? `/games/global/${encodeURIComponent(externalId.slice(5))}`
           : `/games/details-by-title?title=${encodeURIComponent(game.title)}`;
         const response = await api(path);
         const data = response.item;
         if (data) {
-          // Nunca sustituir el texto español por la descripción original en otro idioma.
-          result.synopsis = summaries[game.title] || 'Preparando descripción en español...';
+          const originalDescription = String(data.description || '').trim();
+          const fallbackDescription = summaries[game.title] || originalDescription || 'Descripción no disponible para este juego.';
+          result.synopsis = data.descriptionEs || fallbackDescription;
           result.description = result.synopsis;
-          result.developer = data.developer || null;
-          result.publisher = data.publisher || null;
+          result.developer = data.developer || game.developer || null;
+          result.publisher = data.publisher || game.publisher || null;
           result.releaseDate = data.releaseDate || null;
-          result.screenshots = (data.screenshots || []).filter(Boolean).slice(0, 12);
-          result.rawgId = data.rawgId;
+          result.screenshots = (Array.isArray(data.screenshots) ? data.screenshots : []).filter(Boolean).slice(0, 12);
+
+          // El endpoint de detalles devuelve la descripción original.
+          // Para RAWG solicitamos por separado la traducción existente en el backend.
+          const rawgId = isRawgGame
+            ? externalId.slice(5)
+            : String(data.rawgId || '').replace(/^rawg:/, '');
+          if (rawgId && originalDescription && !data.descriptionEs) {
+            try {
+              const translated = await api(`/games/global/${encodeURIComponent(rawgId)}/translation`);
+              if (translated?.descriptionEs?.trim()) {
+                result.synopsis = translated.descriptionEs;
+                result.description = translated.descriptionEs;
+              }
+            } catch (translationError) {
+              // Si la traducción falla, mantenemos la descripción original de RAWG.
+              console.warn('Traducción no disponible; mostrando descripción original.', translationError);
+            }
+          }
         } else {
-          result.synopsis = summaries[game.title] || 'Descripción en español no disponible para este juego.';
+          result.synopsis = summaries[game.title] || game.description || 'Descripción no disponible para este juego.';
           result.description = result.synopsis;
         }
       } catch {
-        result.synopsis = summaries[game.title] || 'No fue posible cargar la descripción en español.';
+        result.synopsis = game.description || summaries[game.title] || 'No fue posible cargar la descripción del juego.';
         result.description = result.synopsis;
+        result.developer = game.developer || null;
+        result.publisher = game.publisher || null;
+        result.screenshots = Array.isArray(game.screenshots) ? game.screenshots : [];
       }
 
       if (!result.screenshots.length && (game.coverUrl || game.cover_url)) {
@@ -88,15 +102,6 @@ export default function GameDetailsModal({ game, onClose, onAdd }) {
       if (!cancelled) {
         setDetails(result);
         setLoading(false);
-        if (result.rawgId) {
-          setTranslating(true);
-          api(`/games/global/${encodeURIComponent(result.rawgId)}/translation`)
-            .then(response => {
-              if (!cancelled && response.descriptionEs) setDetails(previous => ({ ...previous, synopsis: response.descriptionEs, description: response.descriptionEs }));
-            })
-            .catch(() => {})
-            .finally(() => { if (!cancelled) setTranslating(false); });
-        }
       }
     }
 
@@ -127,12 +132,10 @@ export default function GameDetailsModal({ game, onClose, onAdd }) {
   return (
     <div
       className="modal-backdrop game-details-backdrop"
-      style={{ overscrollBehavior: 'contain' }}
       onClick={onClose}
     >
       <div
         className="game-details-modal"
-        style={{ overscrollBehavior: 'contain' }}
         role="dialog"
         aria-modal="true"
         aria-labelledby="game-detail-title"
@@ -152,8 +155,6 @@ export default function GameDetailsModal({ game, onClose, onAdd }) {
               src={cover}
               alt={`Portada de ${game.title}`}
               className="game-details-cover"
-              fetchPriority="high"
-              decoding="async"
               onError={event => {
                 event.currentTarget.src =
                   `https://placehold.co/500x700/171725/c4b5fd?text=${encodeURIComponent(game.title)}`;
@@ -216,7 +217,6 @@ export default function GameDetailsModal({ game, onClose, onAdd }) {
                   'No hay descripción adicional disponible en español.'}
               </p>
             )}
-            {translating && <p className="mt-2 text-xs text-violet-300">Preparando traducción en español...</p>}
 
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <div className="rounded-xl border border-white/10 bg-white/[.03] p-4">
@@ -281,7 +281,6 @@ export default function GameDetailsModal({ game, onClose, onAdd }) {
                       src={image}
                       alt={`Imagen ${index + 1} de ${game.title}`}
                       loading="lazy"
-                      decoding="async"
                       className="aspect-video w-full object-cover transition duration-300 group-hover:scale-[1.03]"
                       onError={event => {
                         event.currentTarget.style.display = 'none';
@@ -302,7 +301,6 @@ export default function GameDetailsModal({ game, onClose, onAdd }) {
           </section>
 
           <div className="flex flex-wrap gap-2">
-            {!game.fromLibrary && (
             <button
               className={`primary-button ${adding ? 'button-loading' : ''}`}
               onClick={handleAdd}
@@ -323,7 +321,6 @@ export default function GameDetailsModal({ game, onClose, onAdd }) {
                 </>
               )}
             </button>
-            )}
 
             <button
               className="secondary-button"

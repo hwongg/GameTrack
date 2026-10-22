@@ -18,7 +18,7 @@ app.disable('x-powered-by');
 app.set('trust proxy', 1);
 app.use(helmet());
 app.use(cors({ origin: (process.env.CORS_ORIGIN || 'http://localhost:3000').split(',').map(value => value.trim()), credentials: true, methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] }));
-app.use(express.json({ limit: '100kb', strict: true }));
+app.use(express.json({ limit: '12mb', strict: true }));
 app.use(cookieParser());
 app.use((req, res, next) => {
   console.log(JSON.stringify({ level: 'info', method: req.method, path: req.path, time: new Date().toISOString() }));
