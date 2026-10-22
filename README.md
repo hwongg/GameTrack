@@ -66,11 +66,13 @@ Rutas principales: `POST /api/auth/register`, `POST /api/auth/login`, `POST /api
 
 - Consulta y búsqueda del catálogo local.
 - Búsqueda y detalle de videojuegos mediante RAWG, con caché Redis para acelerar consultas repetidas.
-- Traducción de descripciones al español mediante LibreTranslate.
+- Traducción de descripciones al español mediante LibreTranslate; la disponibilidad depende de los modelos de idiomas instalados (incluido japonés cuando se habilita).
+- Consulta de desarrollador, distribuidor y capturas de pantalla disponibles en RAWG para la vista de detalles.
+- Separación de los juegos creados manualmente por administración respecto de los títulos RAWG incorporados a bibliotecas personales.
 - Servicio de descarga de portadas para exportaciones PDF/JPG sin problemas de CORS.
 - Importación de videojuegos al catálogo local.
 - Creación, edición y eliminación de juegos para usuarios con rol `admin`.
-- Biblioteca personal con estados `pendiente`, `jugando`, `completado` y `abandonado`.
+- Biblioteca personal con estados `pendiente`, `jugando`, `completado` y `abandonado`, además de vista de favoritos. La presentación utiliza orden alfabético interno sin selector de ordenamiento.
 - Registro de horas jugadas y favoritos.
 - Preparación del historial del usuario y del catálogo candidato para solicitar recomendaciones al microservicio de IA.
 - Validación de JWT y controles de autorización por rol.
@@ -104,10 +106,10 @@ Los modelos Sequelize definen estas tablas en PostgreSQL:
 | Tabla | Campos relevantes | Relaciones |
 |---|---|---|
 | `usuarios` | `id` (PK), `name`, `email` (único), `password_hash`, `role`, `created_at`, `updated_at` | 1:N con `recomendaciones` |
-| `juegos` | `id` (PK), `title`, `description`, `platform`, `genre`, `cover_url`, `external_id`, `created_at`, `updated_at` | 1:N con `recomendaciones` |
+| `juegos` | `id` (PK), `title`, `description`, `platform`, `genre`, `cover_url`, `developer`, `publisher`, `screenshots` (JSONB), `external_id`, `created_at`, `updated_at` | 1:N con `recomendaciones` |
 | `recomendaciones` | `id` (PK), `user_id` (FK), `game_id` (FK), `hours_played`, `status`, `favorite`, `score`, `created_at`, `updated_at` | N:1 con `usuarios` y N:1 con `juegos` |
 
-La combinación (`user_id`, `game_id`) es única en `recomendaciones`. Las asociaciones están configuradas con eliminación en cascada. El modelo relacional editable está disponible en [`GameTrack-Modelo-Relacional.drawio`](GameTrack-Modelo-Relacional.drawio).
+La combinación (`user_id`, `game_id`) es única en `recomendaciones`. Las asociaciones están configuradas con eliminación en cascada. El modelo relacional editable se entrega como [`GameTrack-Modelo-Relacional.drawio`](GameTrack-Modelo-Relacional.drawio). Los campos `developer` y `publisher` son opcionales; `screenshots` es JSONB no nulo con valor inicial `[]`. El script `database/upgrade-game-metadata.sql` documenta la actualización de metadatos en bases existentes.
 
 > Este esquema corresponde a los modelos Sequelize del proyecto. Keycloak utiliza su propio almacenamiento interno, no representado en este modelo de negocio.
 
@@ -123,15 +125,14 @@ No es necesario instalar Node.js, Python ni PostgreSQL localmente para ejecutar 
 
 ## 7. Instalación en Windows PowerShell
 
-Clonar el repositorio y preparar las variables de entorno:
+Desde la raíz del proyecto:
 
 ```powershell
-git clone https://github.com/hwongg/GameTrack.git
-cd GameTrack
+cd C:\GameTrack
 Copy-Item .env.example .env
 ```
 
-El archivo `.env` contiene la configuración local de los servicios. Sus variables principales son:
+Editar `.env` y sustituir los valores de ejemplo por secretos propios. Variables principales:
 
 | Variable | Propósito |
 |---|---|
@@ -183,7 +184,7 @@ No utilizar `docker compose down -v` si se desea conservar la base de datos y la
 
 ### Pruebas automatizadas del backend
 
-Las pruebas del backend usan el ejecutor nativo de Node.js (`node --test`). No necesitan Docker, base de datos ni conexión a Internet, porque simulan los modelos y los servicios externos (RAWG y traducción). Requieren Node.js instalado localmente (probado con Node.js v24).
+Las pruebas del backend utilizan `node --test` y simulaciones de dependencias externas. Para ejecutarlas con Node.js instalado:
 
 ```powershell
 cd backend
@@ -191,11 +192,7 @@ npm install
 npm test
 ```
 
-Con la versión actual, el resultado esperado es de 39 pruebas aprobadas y 0 fallos. Los archivos están en `backend/tests/`:
-
-- `helpers/setup.js`: utilidades compartidas (token de prueba, servidor temporal y simulación de módulos).
-- `games.test.js`: rutas de `/api/games`.
-- `library.test.js`: rutas de `/api/library`.
+Las pruebas automatizadas cubren rutas del catálogo y la biblioteca, utilizando simulaciones de las dependencias externas.
 
 ## 9. Verificaciones realizadas
 
@@ -212,41 +209,35 @@ Las siguientes pruebas fueron realizadas durante el desarrollo en el entorno loc
 - `POST /api/auth/refresh` y `POST /api/auth/logout` con origen externo no autorizado → **403 Forbidden**.
 - Revisión visual de escritorio, tablet y móvil; se agregó navegación móvil tipo hamburguesa.
 
-Las verificaciones corresponden a pruebas funcionales realizadas en el entorno local de desarrollo; no constituyen una auditoría integral de seguridad.
+Las verificaciones corresponden al entorno local de desarrollo y no constituyen una auditoría integral de seguridad.
 
 ## 10. Seguridad
 
-- Las contraseñas de las cuentas locales se almacenan mediante hashes bcrypt.
-- La autenticación utiliza JWT y ofrece integración con Keycloak mediante OpenID Connect.
-- Las operaciones administrativas requieren autorización por rol.
-- El servicio de IA valida una clave de acceso interna.
-- Los servicios utilizan controles como Helmet, validación de entradas, limitación de solicitudes y restricciones CORS/origen, según corresponda.
-- Los secretos de configuración se mantienen fuera del repositorio mediante `.env`; el archivo `.env.example` contiene la plantilla de variables.
-- El despliegue documentado está orientado al entorno local de desarrollo. Para un entorno público se requiere HTTPS y una configuración de seguridad específica.
+- El archivo `.env` contiene la configuración local y está excluido del repositorio; `.env.example` ofrece la plantilla de variables.
+- Las cuentas locales utilizan hashes bcrypt y autenticación mediante JWT.
+- Las operaciones administrativas cuentan con controles de autorización por rol.
+- El servicio de IA utiliza una clave de acceso interna.
+- Los servicios incorporan Helmet, validación de entradas, limitación de solicitudes y controles CORS/origen según corresponda.
+- El despliegue documentado está orientado a desarrollo local mediante HTTP; los entornos públicos requieren configuración HTTPS.
 
 ## 11. Estructura del repositorio
 
 ```text
 GameTrack/
-├── ai-service/                         # FastAPI y motor de recomendaciones
-├── auth-service/                       # Autenticación local, JWT y OIDC
-├── backend/                            # Catálogo, biblioteca y recomendaciones
-├── frontend/                           # Interfaz React y Tailwind
-├── keycloak/                           # Importación del realm
-├── proxy/                              # Configuración Nginx y balanceo
+├── ai-service/         # FastAPI y motor de recomendaciones
+├── auth-service/       # Autenticación local, JWT y OIDC
+├── backend/            # Catálogo, biblioteca y recomendaciones
+├── frontend/           # Interfaz React y Tailwind
+├── keycloak/           # Importación del realm
+├── proxy/              # Configuración Nginx y balanceo
+├── database/           # Script SQL de actualización de metadatos
 ├── GameTrack-Modelo-Relacional.drawio  # Modelo relacional editable
-├── docker-compose.yml                  # Orquestación
-├── .env.example                        # Plantilla de configuración
-└── README.md                           # Documentación
+├── docker-compose.yml  # Orquestación
+├── .env.example        # Plantilla de configuración
+└── README.md           # Documentación
 ```
 
 ## 12. Equipo de desarrollo
 
 - **Hansel Fabricio Wong Gamboa** — 2790-23-14113
 - **Luis Reynaldo De León Sopón** — 2790-22-581
-
-El historial de cambios y las contribuciones del proyecto se encuentran disponibles en la sección **Commits** del repositorio de GitHub.
-
-## 13. Contenido de la entrega
-
-El repositorio reúne el código fuente de los microservicios, los archivos de configuración y despliegue con Docker Compose, el modelo relacional editable y la documentación de arquitectura y funcionalidades.

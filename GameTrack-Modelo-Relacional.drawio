@@ -1,17 +1,18 @@
+<?xml version='1.0' encoding='utf-8'?>
 <mxfile host="app.diagrams.net" agent="GameTrack">
   <diagram id="gametrack-rel" name="Modelo Relacional GameTrack">
-    <mxGraphModel dx="1471" dy="877" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+    <mxGraphModel dx="1471" dy="877" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="920" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
         <mxCell id="usuarios" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1E293B;strokeColor=#8B5CF6;strokeWidth=2;fontColor=#FFFFFF;align=left;verticalAlign=top;spacing=13;shadow=1;" value="&lt;div style=&quot;font-size:17px&quot;&gt;&lt;b&gt;usuarios&lt;/b&gt;&lt;/div&gt;&lt;div style=&quot;font-size:11px;color:#ddd&quot;&gt;PostgreSQL · Sequelize&lt;/div&gt;&lt;hr style=&quot;border:0;border-top:1px solid #777&quot;&gt;🔑 &lt;b&gt;id&lt;/b&gt; : UUID (PK)&lt;br&gt;name : VARCHAR(80) NOT NULL&lt;br&gt;email : VARCHAR(254) UNIQUE&lt;br&gt;password_hash : VARCHAR(255)&lt;br&gt;role : ENUM(normal, admin)&lt;br&gt;created_at : TIMESTAMP&lt;br&gt;updated_at : TIMESTAMP" vertex="1">
           <mxGeometry height="251" width="330" x="65" y="145" as="geometry" />
         </mxCell>
-        <mxCell id="juegos" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1E293B;strokeColor=#8B5CF6;strokeWidth=2;fontColor=#FFFFFF;align=left;verticalAlign=top;spacing=13;shadow=1;" value="&lt;div style=&quot;font-size:17px&quot;&gt;&lt;b&gt;juegos&lt;/b&gt;&lt;/div&gt;&lt;div style=&quot;font-size:11px;color:#ddd&quot;&gt;PostgreSQL · Sequelize&lt;/div&gt;&lt;hr style=&quot;border:0;border-top:1px solid #777&quot;&gt;🔑 &lt;b&gt;id&lt;/b&gt; : UUID (PK)&lt;br&gt;title : VARCHAR(160) NOT NULL&lt;br&gt;description : TEXT&lt;br&gt;platform : TEXT NOT NULL&lt;br&gt;genre : VARCHAR(80) NOT NULL&lt;br&gt;cover_url : VARCHAR(1000)&lt;br&gt;external_id : VARCHAR(100)&lt;br&gt;created_at : TIMESTAMP&lt;br&gt;updated_at : TIMESTAMP" vertex="1">
-          <mxGeometry height="309" width="330" x="755" y="110" as="geometry" />
+        <mxCell id="juegos" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1E293B;strokeColor=#8B5CF6;strokeWidth=2;fontColor=#FFFFFF;align=left;verticalAlign=top;spacing=13;shadow=1;" value="&lt;div style=&quot;font-size:17px&quot;&gt;&lt;b&gt;juegos&lt;/b&gt;&lt;/div&gt;&lt;div style=&quot;font-size:11px;color:#ddd&quot;&gt;PostgreSQL · Sequelize&lt;/div&gt;&lt;hr style=&quot;border:0;border-top:1px solid #777&quot;&gt;🔑 &lt;b&gt;id&lt;/b&gt; : UUID (PK)&lt;br&gt;title : VARCHAR(160) NOT NULL&lt;br&gt;description : TEXT&lt;br&gt;platform : TEXT NOT NULL&lt;br&gt;genre : VARCHAR(80) NOT NULL&lt;br&gt;cover_url : VARCHAR(1000)&lt;br&gt;developer : VARCHAR(200)&lt;br&gt;publisher : VARCHAR(200)&lt;br&gt;screenshots : JSONB NOT NULL DEFAULT []&lt;br&gt;external_id : VARCHAR(100)&lt;br&gt;created_at : TIMESTAMP&lt;br&gt;updated_at : TIMESTAMP" vertex="1">
+          <mxGeometry height="382" width="330" x="755" y="110" as="geometry" />
         </mxCell>
         <mxCell id="recomendaciones" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1E293B;strokeColor=#8B5CF6;strokeWidth=2;fontColor=#FFFFFF;align=left;verticalAlign=top;spacing=13;shadow=1;" value="&lt;div style=&quot;font-size:17px&quot;&gt;&lt;b&gt;recomendaciones&lt;/b&gt;&lt;/div&gt;&lt;div style=&quot;font-size:11px;color:#ddd&quot;&gt;PostgreSQL · Sequelize&lt;/div&gt;&lt;hr style=&quot;border:0;border-top:1px solid #777&quot;&gt;🔑 &lt;b&gt;id&lt;/b&gt; : UUID (PK)&lt;br&gt;🔗 &lt;b&gt;user_id&lt;/b&gt; : UUID (FK)&lt;br&gt;🔗 &lt;b&gt;game_id&lt;/b&gt; : UUID (FK)&lt;br&gt;hours_played : DECIMAL(8,2)&lt;br&gt;status : ENUM(4 estados)&lt;br&gt;favorite : BOOLEAN&lt;br&gt;score : FLOAT&lt;br&gt;created_at : TIMESTAMP&lt;br&gt;updated_at : TIMESTAMP&lt;br&gt;UNIQUE(user_id, game_id)" vertex="1">
-          <mxGeometry height="338" width="350" x="405" y="420" as="geometry" />
+          <mxGeometry height="338" width="350" x="405" y="475" as="geometry" />
         </mxCell>
         <mxCell id="rel-user" edge="1" parent="1" source="usuarios" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7C3AED;strokeWidth=2;endArrow=ERmany;endFill=0;startArrow=ERone;startFill=0;fontSize=14;fontColor=#4C1D95;exitX=0.8;exitY=1;exitDx=0;exitDy=0;entryX=0.15;entryY=0;entryDx=0;entryDy=0;" target="recomendaciones" value="1 : N">
           <mxGeometry relative="1" as="geometry" />
@@ -23,7 +24,7 @@
           <mxGeometry height="60" width="830" x="165" y="25" as="geometry" />
         </mxCell>
         <mxCell id="note" parent="1" style="text;html=1;align=center;whiteSpace=wrap;fontSize=13;fontColor=#475569;" value="PK = clave primaria · FK = clave foránea · CASCADE al eliminar usuario o juego · Tablas basadas en los modelos Sequelize" vertex="1">
-          <mxGeometry height="35" width="1020" x="75" y="755" as="geometry" />
+          <mxGeometry height="35" width="1020" x="75" y="818" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
