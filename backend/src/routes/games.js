@@ -114,8 +114,16 @@ router.post('/', authenticate, requireAdmin,
   }
 );
 
-router.put('/:id', authenticate, requireAdmin, async (req, res, next) => {
+router.put('/:id', authenticate, requireAdmin,
+  body('title').optional().isString().trim().isLength({ min: 1, max: 160 }),
+  body('platform').optional().isString().trim().isLength({ min: 1, max: 1000 }),
+  body('genre').optional().isString().trim().isLength({ min: 1, max: 500 }),
+  body('description').optional({ nullable: true }).isString().isLength({ max: 5000 }),
+  body('coverUrl').optional({ nullable: true }).isURL({ protocols: ['http', 'https'], require_protocol: true }).isLength({ max: 1000 }),
+  async (req, res, next) => {
   try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
     const allowed = ['title', 'platform', 'genre', 'description', 'coverUrl', 'externalId'];
     const data = Object.fromEntries(Object.entries(req.body).filter(([key]) => allowed.includes(key)));
     if (!Object.keys(data).length) return res.status(400).json({ error: 'No hay campos válidos para actualizar.' });
