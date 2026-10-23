@@ -17,6 +17,7 @@ const validGame = {
   title: 'Hades',
   platform: 'PC',
   genre: 'Roguelike',
+  releaseDate: '2020-09-17',
   coverUrl: 'https://example.com/hades.jpg'
 };
 
@@ -117,6 +118,69 @@ describe('Rutas /api/games', () => {
       assert.equal(Game.create.mock.callCount(), 0);
     });
 
+    test('permite crear un juego sin fecha de lanzamiento', async () => {
+      const { releaseDate, ...gameWithoutDate } = validGame;
+      const res = await call(server.baseUrl, 'POST', '/api/games', {
+        token: adminToken,
+        body: gameWithoutDate
+      });
+
+      assert.equal(res.status, 201);
+      assert.equal(res.body.releaseDate, null);
+      assert.equal(Game.create.mock.calls[0].arguments[0].releaseDate, null);
+    });
+
+    test('permite crear un juego con fecha de lanzamiento vacía', async () => {
+      const res = await call(server.baseUrl, 'POST', '/api/games', {
+        token: adminToken,
+        body: { ...validGame, releaseDate: '' }
+      });
+
+      assert.equal(res.status, 201);
+      assert.equal(res.body.releaseDate, null);
+      assert.equal(Game.create.mock.calls[0].arguments[0].releaseDate, null);
+    });
+
+    test('permite crear un juego con fecha de lanzamiento nula', async () => {
+      const res = await call(server.baseUrl, 'POST', '/api/games', {
+        token: adminToken,
+        body: { ...validGame, releaseDate: null }
+      });
+
+      assert.equal(res.status, 201);
+      assert.equal(res.body.releaseDate, null);
+    });
+
+    test('rechaza valores no válidos como booleanos en fecha de lanzamiento', async () => {
+      const res = await call(server.baseUrl, 'POST', '/api/games', {
+        token: adminToken,
+        body: { ...validGame, releaseDate: false }
+      });
+
+      assert.equal(res.status, 400);
+      assert.equal(Game.create.mock.callCount(), 0);
+    });
+
+    test('devuelve 400 si la fecha de lanzamiento no existe en el calendario', async () => {
+      const res = await call(server.baseUrl, 'POST', '/api/games', {
+        token: adminToken,
+        body: { ...validGame, releaseDate: '2026-02-30' }
+      });
+
+      assert.equal(res.status, 400);
+      assert.equal(Game.create.mock.callCount(), 0);
+    });
+
+    test('devuelve 400 si la fecha de lanzamiento no tiene el formato AAAA-MM-DD', async () => {
+      const res = await call(server.baseUrl, 'POST', '/api/games', {
+        token: adminToken,
+        body: { ...validGame, releaseDate: '17/09/2020' }
+      });
+
+      assert.equal(res.status, 400);
+      assert.equal(Game.create.mock.callCount(), 0);
+    });
+
     test('crea el juego con datos válidos', async () => {
       const res = await call(server.baseUrl, 'POST', '/api/games', {
         token: adminToken,
@@ -127,6 +191,7 @@ describe('Rutas /api/games', () => {
       assert.equal(res.body.title, 'Hades');
       assert.equal(Game.create.mock.callCount(), 1);
       assert.equal(Game.create.mock.calls[0].arguments[0].externalId, null);
+      assert.equal(Game.create.mock.calls[0].arguments[0].releaseDate, '2020-09-17');
     });
   });
 
@@ -216,6 +281,67 @@ describe('Rutas /api/games', () => {
       assert.equal(res.status, 400);
       assert.ok(Array.isArray(res.body.errors));
       assert.equal(update.mock.callCount(), 0);
+    });
+
+    test('devuelve 400 si la fecha de lanzamiento es inválida', async () => {
+      const update = mock.fn(async () => {});
+      Game.findByPk = mock.fn(async () => ({ update }));
+
+      const res = await call(server.baseUrl, 'PUT', '/api/games/abc', {
+        token: adminToken,
+        body: { releaseDate: '2026-13-01' }
+      });
+
+      assert.equal(res.status, 400);
+      assert.equal(update.mock.callCount(), 0);
+    });
+
+    test('actualiza la fecha de lanzamiento de un juego existente', async () => {
+      const game = { id: 'abc', title: 'Hades', update: mock.fn(async function(data) {
+        Object.assign(this, data);
+      }) };
+      Game.findByPk = mock.fn(async () => game);
+
+      const res = await call(server.baseUrl, 'PUT', '/api/games/abc', {
+        token: adminToken,
+        body: { releaseDate: '2024-11-13' }
+      });
+
+      assert.equal(res.status, 200);
+      assert.equal(game.update.mock.callCount(), 1);
+      assert.equal(game.update.mock.calls[0].arguments[0].releaseDate, '2024-11-13');
+      assert.equal(res.body.releaseDate, '2024-11-13');
+    });
+
+    test('permite quitar la fecha de lanzamiento al editar un juego', async () => {
+      const game = { id: 'abc', title: 'Hades', releaseDate: '2020-09-17', update: mock.fn(async function(data) {
+        Object.assign(this, data);
+      }) };
+      Game.findByPk = mock.fn(async () => game);
+
+      const res = await call(server.baseUrl, 'PUT', '/api/games/abc', {
+        token: adminToken,
+        body: { releaseDate: '' }
+      });
+
+      assert.equal(res.status, 200);
+      assert.equal(res.body.releaseDate, null);
+      assert.equal(game.update.mock.calls[0].arguments[0].releaseDate, null);
+    });
+
+    test('permite actualizar otros campos en juegos antiguos sin fecha', async () => {
+      const game = { id: 'abc', title: 'Antiguo', releaseDate: null, update: mock.fn(async function(data) {
+        Object.assign(this, data);
+      }) };
+      Game.findByPk = mock.fn(async () => game);
+
+      const res = await call(server.baseUrl, 'PUT', '/api/games/abc', {
+        token: adminToken,
+        body: { title: 'Antiguo actualizado' }
+      });
+
+      assert.equal(res.status, 200);
+      assert.equal(res.body.releaseDate, null);
     });
   });
 

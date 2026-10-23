@@ -26,7 +26,8 @@ export default function GameDetailsModal({ game, onClose, onAdd }) {
         synopsis:
           summaries[game.title] ||
           'Cargando descripción en español...',
-        screenshots: []
+        screenshots: [],
+        releaseDate: game.releaseDate || null
       };
 
       const externalId = String(game.externalId || game.external_id || game.id || '');
@@ -34,9 +35,9 @@ export default function GameDetailsModal({ game, onClose, onAdd }) {
 
       // Los registros manuales tienen su propia descripción en PostgreSQL.
       // No buscar en RAWG por título: puede ocultar o reemplazar esos datos.
-      if (!isRawgGame && game.description?.trim()) {
-        result.synopsis = game.description;
-        result.description = game.description;
+      if (!isRawgGame && !game.externalId) {
+        result.synopsis = game.description?.trim() || 'Descripción no disponible para este juego.';
+        result.description = result.synopsis;
         result.developer = game.developer || null;
         result.publisher = game.publisher || null;
         result.screenshots = Array.isArray(game.screenshots) && game.screenshots.length
@@ -63,7 +64,7 @@ export default function GameDetailsModal({ game, onClose, onAdd }) {
           result.description = result.synopsis;
           result.developer = data.developer || game.developer || null;
           result.publisher = data.publisher || game.publisher || null;
-          result.releaseDate = data.releaseDate || null;
+          result.releaseDate = data.releaseDate || game.releaseDate || null;
           result.screenshots = (Array.isArray(data.screenshots) ? data.screenshots : []).filter(Boolean).slice(0, 12);
 
           // El endpoint de detalles devuelve la descripción original.

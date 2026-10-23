@@ -1,15 +1,58 @@
 const express = require('express');
 const router = express.Router();
 
-// Solo proveedores conocidos de portadas; nunca aceptar URLs arbitrarias.
+// Proveedores de imágenes directas. No habilitar dominios arbitrarios: este
+// endpoint descarga contenido desde el servidor y debe protegerse contra SSRF.
 const allowedHosts = new Set([
+  // RAWG, IGDB y Steam
   'media.rawg.io',
   'images.igdb.com',
   'cdn.akamai.steamstatic.com',
   'shared.akamai.steamstatic.com',
   'cdn.cloudflare.steamstatic.com',
+  'steamcdn-a.akamaihd.net',
+  // Wikipedia/Wikimedia Commons (archivos, no páginas HTML)
+  'upload.wikimedia.org',
+  // Miniaturas de Google Imágenes
+  'encrypted-tbn0.gstatic.com',
+  'encrypted-tbn1.gstatic.com',
+  'encrypted-tbn2.gstatic.com',
+  'encrypted-tbn3.gstatic.com',
+  'lh3.googleusercontent.com',
+  'lh4.googleusercontent.com',
+  'lh5.googleusercontent.com',
+  'lh6.googleusercontent.com',
+  // Proveedores habituales de portadas y material de videojuegos
+  'cdn.mobygames.com',
+  'images.launchbox-app.com',
+  'cdn.steamgriddb.com',
+  'cdn2.steamgriddb.com',
+  'assets-prd.ignimgs.com',
+  'www.giantbomb.com',
+  'static.wikia.nocookie.net',
+  'images.nintendolife.com',
+  'assetsio.gnwcdn.com',
+  'cdn.vox-cdn.com',
+  'i.imgur.com',
+  'i.pinimg.com',
+  'images.unsplash.com',
   'placehold.co'
 ]);
+
+// Facebook entrega las fotos desde servidores CDN con subdominios variables.
+// Las URLs de facebook.com/photo... NO son imágenes directas y no se admiten.
+const allowedCdnSuffixes = ['.fbcdn.net', '.fbcdn.com', '.cdninstagram.com'];
+
+function isAllowedImageUrl(value) {
+  let parsed;
+  try { parsed = new URL(String(value || '')); }
+  catch { return false; }
+  const host = parsed.hostname.toLowerCase();
+  return parsed.protocol === 'https:' && !parsed.port &&
+    !parsed.username && !parsed.password &&
+    (allowedHosts.has(host) || allowedCdnSuffixes.some(suffix => host.endsWith(suffix)));
+}
+
 const MAX_BYTES = 5 * 1024 * 1024;
 
 router.get('/', async (req, res) => {
@@ -20,9 +63,8 @@ router.get('/', async (req, res) => {
     return res.status(400).json({ error: 'URL de portada inválida.' });
   }
 
-  if (url.protocol !== 'https:' || !allowedHosts.has(url.hostname.toLowerCase()) ||
-      url.port || url.username || url.password) {
-    return res.status(400).json({ error: 'Proveedor de portada no permitido.' });
+  if (!isAllowedImageUrl(url.href)) {
+    return res.status(400).json({ error: 'Proveedor de portada no permitido. Use una URL directa HTTPS de una imagen admitida.' });
   }
 
   try {
@@ -64,4 +106,6 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Se expone para las pruebas, sin habilitar una ruta pública adicional.
+router.isAllowedImageUrl = isAllowedImageUrl;
 module.exports = router;
