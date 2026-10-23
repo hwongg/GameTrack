@@ -4,6 +4,37 @@ import { jsPDF } from 'jspdf';
 import { api, setAccessToken, getAccessToken } from './services/api';
 import GameDetailsModal from './components/GameDetailsModal';
 
+// Estrella vectorial: no depende de que la fuente PDF admita el carácter ★.
+function favoriteStarPoints(centerX, centerY, outerRadius, innerRadius) {
+  return Array.from({ length: 10 }, (_, index) => {
+    const angle = -Math.PI / 2 + index * Math.PI / 5;
+    const radius = index % 2 === 0 ? outerRadius : innerRadius;
+    return [centerX + Math.cos(angle) * radius, centerY + Math.sin(angle) * radius];
+  });
+}
+
+function drawPdfFavoriteStar(doc, centerX, centerY) {
+  const points = favoriteStarPoints(centerX, centerY, 2.9, 1.25);
+  const movements = points.map((point, index) => {
+    const next = points[(index + 1) % points.length];
+    return [next[0] - point[0], next[1] - point[1]];
+  });
+  doc.setFillColor(245, 180, 36);
+  doc.lines(movements, points[0][0], points[0][1], [1, 1], 'F', true);
+}
+
+function drawCanvasFavoriteStar(context, centerX, centerY) {
+  const points = favoriteStarPoints(centerX, centerY, 12, 5.3);
+  context.beginPath();
+  points.forEach(([x, y], index) => {
+    if (index === 0) context.moveTo(x, y);
+    else context.lineTo(x, y);
+  });
+  context.closePath();
+  context.fillStyle = '#f5b424';
+  context.fill();
+}
+
 const emptyGameForm = () => ({ title: '', platform: '', genre: '', releaseDate: '', description: '', coverUrl: '', developer: '', publisher: '', screenshots: [] });
 
 const platforms = [
@@ -536,13 +567,19 @@ export default function App() {
         doc.text('Sin portada', 16, y + 16);
       }
 
+      // Señalar los favoritos en la exportación completa de la biblioteca.
+      if (item.favorite === true) {
+        drawPdfFavoriteStar(doc, 45, y + 4);
+      }
+
       doc.setFontSize(11);
       doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0, 0, 0);
       doc.text(
         `${index + 1}. ${game.title || 'Juego'}`,
-        42,
+        item.favorite === true ? 52 : 42,
         y + 5,
-        { maxWidth: 150 }
+        { maxWidth: item.favorite === true ? 140 : 150 }
       );
 
       doc.setFont('helvetica', 'normal');
@@ -631,12 +668,17 @@ export default function App() {
         context.fillRect(48, y + 8, 78, 118);
       }
 
+      if (item.favorite === true) {
+        drawCanvasFavoriteStar(context, 155, y + 26);
+      }
+
       context.fillStyle = '#f4f4f5';
       context.font = 'bold 25px Arial';
       context.fillText(
         (game.title || 'Juego').slice(0, 65),
-        145,
-        y + 34
+        item.favorite === true ? 178 : 145,
+        y + 34,
+        item.favorite === true ? 950 : 980
       );
 
       context.fillStyle = '#c4b5fd';
