@@ -98,6 +98,8 @@ router.post('/import', authenticate,
   }
 );
 
+const validateReleaseDate = body('releaseDate').customSanitizer(value => value === '' ? null : value).optional({ nullable: true }).isString().matches(/^\d{4}-\d{2}-\d{2}$/).bail().isISO8601({ strict: true });
+
 const validateScreenshots = body('screenshots').optional().custom(value => {
   if (!Array.isArray(value) || value.length > 8) throw new Error('Máximo 8 capturas.');
   if (!value.every(src => typeof src === 'string' && src.length <= 1400000 && /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(src))) throw new Error('Las capturas deben ser imágenes JPG, PNG o WebP de hasta 1 MB.');
@@ -105,6 +107,7 @@ const validateScreenshots = body('screenshots').optional().custom(value => {
 });
 
 router.post('/', authenticate, requireAdmin,
+  validateReleaseDate,
   body('title').isString().trim().isLength({ min: 1, max: 160 }),
   body('platform').isString().trim().isLength({ min: 1, max: 1000 }),
   body('genre').isString().trim().isLength({ min: 1, max: 80 }),
@@ -117,13 +120,14 @@ router.post('/', authenticate, requireAdmin,
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
-      const game = await Game.create({ title: req.body.title, platform: req.body.platform, genre: req.body.genre, description: req.body.description || null, coverUrl: req.body.coverUrl || null, externalId: req.body.externalId || null, developer: req.body.developer || null, publisher: req.body.publisher || null, screenshots: req.body.screenshots || [] });
+      const game = await Game.create({ title: req.body.title, platform: req.body.platform, genre: req.body.genre, releaseDate: req.body.releaseDate || null, description: req.body.description || null, coverUrl: req.body.coverUrl || null, externalId: req.body.externalId || null, developer: req.body.developer || null, publisher: req.body.publisher || null, screenshots: req.body.screenshots || [] });
       res.status(201).json(game);
     } catch (err) { next(err); }
   }
 );
 
 router.put('/:id', authenticate, requireAdmin,
+  validateReleaseDate,
   body('title').optional().isString().trim().isLength({ min: 1, max: 160 }),
   body('platform').optional().isString().trim().isLength({ min: 1, max: 1000 }),
   body('genre').optional().isString().trim().isLength({ min: 1, max: 80 }),
@@ -136,7 +140,7 @@ router.put('/:id', authenticate, requireAdmin,
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
-      const allowed = ['title', 'platform', 'genre', 'description', 'coverUrl', 'externalId', 'developer', 'publisher', 'screenshots'];
+      const allowed = ['title', 'platform', 'genre', 'releaseDate', 'description', 'coverUrl', 'externalId', 'developer', 'publisher', 'screenshots'];
       if (req.body.screenshots !== undefined) {
         const check = validationResult(req);
         if (!check.isEmpty()) return res.status(400).json({ errors: check.array() });

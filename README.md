@@ -69,9 +69,9 @@ Rutas principales: `POST /api/auth/register`, `POST /api/auth/login`, `POST /api
 - Traducción de descripciones al español mediante LibreTranslate; la disponibilidad depende de los modelos de idiomas instalados (incluido japonés cuando se habilita).
 - Consulta de desarrollador, distribuidor y capturas de pantalla disponibles en RAWG para la vista de detalles.
 - Separación de los juegos creados manualmente por administración respecto de los títulos RAWG incorporados a bibliotecas personales.
-- Servicio de descarga de portadas para exportaciones PDF/JPG sin problemas de CORS.
+- Servicio de descarga de portadas para exportaciones PDF/JPG sin problemas de CORS. Acepta imágenes directas HTTPS de RAWG, IGDB, Steam, Wikimedia, miniaturas de Google, CDNs de Facebook y otros proveedores conocidos de videojuegos. No admite enlaces a páginas HTML ni dominios arbitrarios; algunas imágenes de Facebook pueden caducar o impedir su descarga. Cuando una portada no puede incorporarse, se informa al usuario en la exportación.
 - Importación de videojuegos al catálogo local.
-- Creación, edición y eliminación de juegos para usuarios con rol `admin`.
+- Creación, edición y eliminación de juegos para usuarios con rol `admin`, con **fecha de lanzamiento opcional** al crear juegos manuales y editable posteriormente.
 - Biblioteca personal con estados `pendiente`, `jugando`, `completado` y `abandonado`, además de vista de favoritos. La presentación utiliza orden alfabético interno sin selector de ordenamiento.
 - Registro de horas jugadas y favoritos.
 - Preparación del historial del usuario y del catálogo candidato para solicitar recomendaciones al microservicio de IA.
@@ -106,10 +106,10 @@ Los modelos Sequelize definen estas tablas en PostgreSQL:
 | Tabla | Campos relevantes | Relaciones |
 |---|---|---|
 | `usuarios` | `id` (PK), `name`, `email` (único), `password_hash`, `role`, `created_at`, `updated_at` | 1:N con `recomendaciones` |
-| `juegos` | `id` (PK), `title`, `description`, `platform`, `genre`, `cover_url`, `developer`, `publisher`, `screenshots` (JSONB), `external_id`, `created_at`, `updated_at` | 1:N con `recomendaciones` |
+| `juegos` | `id` (PK), `title`, `description`, `platform`, `genre`, `release_date` (DATE), `cover_url`, `developer`, `publisher`, `screenshots` (JSONB), `external_id`, `created_at`, `updated_at` | 1:N con `recomendaciones` |
 | `recomendaciones` | `id` (PK), `user_id` (FK), `game_id` (FK), `hours_played`, `status`, `favorite`, `score`, `created_at`, `updated_at` | N:1 con `usuarios` y N:1 con `juegos` |
 
-La combinación (`user_id`, `game_id`) es única en `recomendaciones`. Las asociaciones están configuradas con eliminación en cascada. El modelo relacional editable se entrega como [`GameTrack-Modelo-Relacional.drawio`](GameTrack-Modelo-Relacional.drawio). Los campos `developer` y `publisher` son opcionales; `screenshots` es JSONB no nulo con valor inicial `[]`. El script `database/upgrade-game-metadata.sql` documenta la actualización de metadatos en bases existentes.
+La combinación (`user_id`, `game_id`) es única en `recomendaciones`. Las asociaciones están configuradas con eliminación en cascada. El modelo relacional editable se entrega como [`GameTrack-Modelo-Relacional.drawio`](GameTrack-Modelo-Relacional.drawio). El campo `release_date` admite NULL para registros antiguos y los importados desde RAWG; el formulario y la API permiten omitir la fecha al crear un juego manualmente; cuando se proporciona, debe ser una fecha real con formato `AAAA-MM-DD`. Los campos `developer` y `publisher` son opcionales; `screenshots` es JSONB no nulo con valor inicial `[]`. El script `database/upgrade-game-metadata.sql` documenta la actualización de metadatos en bases existentes. La actualización de la fecha se aplica de forma idempotente al iniciar el backend y también puede ejecutarse de forma manual con `database/upgrade-game-release-date.sql`.
 
 > Este esquema corresponde a los modelos Sequelize del proyecto. Keycloak utiliza su propio almacenamiento interno, no representado en este modelo de negocio.
 
@@ -182,6 +182,17 @@ docker compose down
 
 No utilizar `docker compose down -v` si se desea conservar la base de datos y la configuración persistida de Keycloak.
 
+### Actualizar una instalación existente con fecha de lanzamiento
+
+1. Crear una rama para los cambios y copiar los archivos actualizados. **Conservar el `.env` original y los volúmenes**.
+2. Ejecutar `docker compose up -d --build` desde la raíz del proyecto. El backend añade de manera idempotente la columna `release_date DATE` antes de sincronizar los modelos, sin borrar juegos anteriores.
+3. Verificar con `docker compose ps` y abrir http://localhost:3000. Iniciar sesión como administrador y abrir **Administrar juegos**.
+4. Crear un juego con **Fecha de lanzamiento** opcional y comprobar que se puede guardar tanto con una fecha como sin ella; al abrir sus detalles, se mostrará **Lanzamiento** cuando haya una fecha registrada. Los juegos antiguos que no tienen fecha mostrarán el dato como pendiente en administración hasta que se editen.
+5. Si se desea aplicar previamente el SQL de forma manual, usar desde la raíz: `docker compose exec -T db psql -U gametrack_user -d gametrack < database/upgrade-game-release-date.sql` (ajustar usuario y base según `.env`). No hace falta ejecutar este paso si se inició el backend actualizado.
+
+La columna nueva es **opcional en PostgreSQL** por compatibilidad con filas históricas y con importaciones RAWG; **opcional en el POST administrativo**. En PUT se permite actualizarla o dejarla vacía, y se rechazan fechas inválidas cuando se proporcionan.
+
+
 ### Pruebas automatizadas del backend
 
 Las pruebas del backend utilizan `node --test` y simulaciones de dependencias externas. Para ejecutarlas con Node.js instalado:
@@ -230,7 +241,7 @@ GameTrack/
 ├── frontend/           # Interfaz React y Tailwind
 ├── keycloak/           # Importación del realm
 ├── proxy/              # Configuración Nginx y balanceo
-├── database/           # Script SQL de actualización de metadatos
+├── database/           # Scripts SQL para metadatos y fecha de lanzamiento
 ├── GameTrack-Modelo-Relacional.drawio  # Modelo relacional editable
 ├── docker-compose.yml  # Orquestación
 ├── .env.example        # Plantilla de configuración

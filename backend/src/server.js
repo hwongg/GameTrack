@@ -35,6 +35,9 @@ app.use(errorHandler);
 
 const port = Number(process.env.PORT || 3001);
 sequelize.authenticate()
+  // Agregar la columna a bases existentes antes de que Sequelize consulte juegos.
+  // Admite datos históricos sin fecha y es seguro al iniciar ambas réplicas.
+  .then(() => sequelize.query('ALTER TABLE IF EXISTS "juegos" ADD COLUMN IF NOT EXISTS "release_date" DATE'))
   .then(() => sequelize.sync())
   .then(() => sequelize.query('ALTER TABLE \"juegos\" ALTER COLUMN \"platform\" TYPE TEXT'))
   .then(() => sequelize.query('ALTER TABLE \"recomendaciones\" ADD COLUMN IF NOT EXISTS \"favorite\" BOOLEAN NOT NULL DEFAULT FALSE'))

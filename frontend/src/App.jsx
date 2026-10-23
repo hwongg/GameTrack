@@ -4,6 +4,8 @@ import { jsPDF } from 'jspdf';
 import { api, setAccessToken, getAccessToken } from './services/api';
 import GameDetailsModal from './components/GameDetailsModal';
 
+const emptyGameForm = () => ({ title: '', platform: '', genre: '', releaseDate: '', description: '', coverUrl: '', developer: '', publisher: '', screenshots: [] });
+
 const platforms = [
   'PC',
   'PlayStation 5',
@@ -21,7 +23,7 @@ export default function App() {
   const [games, setGames] = useState([]);
   const [manualGames, setManualGames] = useState([]);
   const [editingGame, setEditingGame] = useState(null);
-  const [gameForm, setGameForm] = useState({ title: '', platform: '', genre: '', description: '', coverUrl: '', developer: '', publisher: '', screenshots: [] });
+  const [gameForm, setGameForm] = useState(emptyGameForm());
   const [library, setLibrary] = useState([]);
   const [recommendations, setRecommendations] = useState([]);
   const [user, setUser] = useState(null);
@@ -147,7 +149,7 @@ export default function App() {
         method: editingGame ? 'PUT' : 'POST', body: JSON.stringify(gameForm)
       });
       setEditingGame(null);
-      setGameForm({ title: '', platform: '', genre: '', description: '', coverUrl: '', developer: '', publisher: '', screenshots: [] });
+      setGameForm(emptyGameForm());
       await loadManualGames();
       await searchGlobal(query, platform, sortOrder);
       setNotice('Videojuego guardado correctamente.');
@@ -494,6 +496,7 @@ export default function App() {
   }
 
   async function exportPDF() {
+    let missingCovers = 0;
     const doc = new jsPDF();
 
     doc.setFontSize(20);
@@ -526,6 +529,7 @@ export default function App() {
           doc.rect(14, y, 22, 31);
         }
       } else {
+        if (game.coverUrl) missingCovers++;
         doc.setDrawColor(120);
         doc.rect(14, y, 22, 31);
         doc.setFontSize(7);
@@ -566,9 +570,11 @@ export default function App() {
     }
 
     doc.save('gametrack-biblioteca.pdf');
+    if (missingCovers) setNotice(`PDF generado, pero no se pudieron descargar ${missingCovers} portada(s). Revise las URL directas HTTPS de las imágenes.`);
   }
 
   async function exportJPG() {
+    let missingCovers = 0;
     const rowHeight = 150;
     const canvas = document.createElement('canvas');
 
@@ -615,10 +621,12 @@ export default function App() {
             image.src = coverData;
           });
         } catch {
+          missingCovers++;
           context.fillStyle = '#30294a';
           context.fillRect(48, y + 8, 78, 118);
         }
       } else {
+        if (game.coverUrl) missingCovers++;
         context.fillStyle = '#30294a';
         context.fillRect(48, y + 8, 78, 118);
       }
@@ -658,6 +666,7 @@ export default function App() {
     link.download = 'gametrack-biblioteca.jpg';
     link.href = canvas.toDataURL('image/jpeg', 0.92);
     link.click();
+    if (missingCovers) setNotice(`JPG generado, pero no se pudieron descargar ${missingCovers} portada(s). Revise las URL directas HTTPS de las imágenes.`);
   }
 
   const getPlaceholder = title =>
@@ -786,12 +795,21 @@ export default function App() {
           <section className="rounded-2xl border border-white/10 p-6 mb-8">
             <h2 className="text-2xl font-bold mb-4">Administrar catálogo local</h2>
             <form onSubmit={saveManualGame} className="grid gap-3 max-w-xl">
-              {['title', 'platform', 'genre', 'description', 'developer', 'publisher', 'coverUrl'].map(field => (
+              {['coverUrl', 'title', 'genre', 'platform', 'description', 'developer', 'publisher'].map(field => (
                 <label key={field} className="grid gap-1 text-sm">
                   {({title:'Título',platform:'Plataforma',genre:'Género',description:'Descripción',developer:'Desarrollador',publisher:'Distribuidor',coverUrl:'URL de portada'})[field]}
                   <input className="rounded-lg bg-zinc-800 p-3 text-white" value={gameForm[field]} required={['title','platform','genre'].includes(field)} onChange={e => setGameForm(previous => ({...previous,[field]:e.target.value}))} />
                 </label>
               ))}
+              <label className="grid gap-1 text-sm">
+                Fecha de lanzamiento
+                <input
+                  type="date"
+                  className="rounded-lg bg-zinc-800 p-3 text-white"
+                  value={gameForm.releaseDate}
+                  onChange={event => setGameForm(previous => ({ ...previous, releaseDate: event.target.value }))}
+                />
+              </label>
               <div className="grid gap-2 text-sm">
                 <span>Capturas del juego (hasta 8 imágenes JPG, PNG o WebP; máximo 1 MB cada una)</span>
                 <input type="file" accept="image/jpeg,image/png,image/webp" multiple className="rounded-lg bg-zinc-800 p-3 text-white" onChange={async event => {
@@ -813,14 +831,14 @@ export default function App() {
               </div>
               <div className="flex gap-2">
                 <button className="primary-button" type="submit">{editingGame ? 'Guardar cambios' : 'Agregar juego'}</button>
-                {editingGame && <button type="button" className="nav-button" onClick={() => {setEditingGame(null);setGameForm({ title: '', platform: '', genre: '', description: '', coverUrl: '', developer: '', publisher: '', screenshots: [] });}}>Cancelar</button>}
+                {editingGame && <button type="button" className="nav-button" onClick={() => {setEditingGame(null);setGameForm(emptyGameForm());}}>Cancelar</button>}
               </div>
             </form>
             <div className="mt-6 grid gap-2">
               {manualGames.map(game => <div key={game.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-zinc-800 p-3">
-                <span>{game.title} · {game.platform}</span>
+                <span>{game.title} · {game.platform}{game.releaseDate ? ` · Lanzamiento: ${game.releaseDate}` : ' · Lanzamiento pendiente'}</span>
                 <div className="flex gap-2">
-                  <button className="nav-button" onClick={() => {setEditingGame(game.id);setGameForm({title:game.title,platform:game.platform,genre:game.genre,description:game.description||'',coverUrl:game.coverUrl||'',developer:game.developer||'',publisher:game.publisher||'',screenshots:game.screenshots||[]});}}>Editar</button>
+                  <button className="nav-button" onClick={() => {setEditingGame(game.id);setGameForm({title:game.title,platform:game.platform,genre:game.genre,releaseDate:game.releaseDate||'',description:game.description||'',coverUrl:game.coverUrl||'',developer:game.developer||'',publisher:game.publisher||'',screenshots:game.screenshots||[]});}}>Editar</button>
                   <button className="nav-button" onClick={() => deleteManualGame(game.id)}>Eliminar</button>
                 </div>
               </div>)}
