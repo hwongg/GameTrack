@@ -203,7 +203,7 @@ npm install
 npm test
 ```
 
-Las pruebas automatizadas cubren rutas del catálogo, la biblioteca y la descarga segura de portadas para exportaciones PDF/JPG, utilizando simulaciones de las dependencias externas. La última ejecución local reportó 54 pruebas aprobadas y 0 fallos.
+Las pruebas automatizadas cubren rutas del catálogo, la biblioteca y la descarga segura de portadas para exportaciones PDF/JPG, utilizando simulaciones de las dependencias externas. La última ejecución local reportó 57 pruebas aprobadas y 0 fallos.
 
 ## 9. Verificaciones realizadas
 

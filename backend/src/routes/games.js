@@ -69,7 +69,7 @@ router.post('/import', authenticate,
   body('externalId').isString().isLength({ min: 3, max: 100 }),
   body('title').isString().trim().isLength({ min: 1, max: 160 }),
   body('platform').isString().trim().isLength({ min: 1, max: 1000 }),
-  body('genre').isString().trim().isLength({ min: 1, max: 500 }),
+  body('genre').isString().trim().isLength({ min: 1, max: 80 }),
   body('description').optional({ nullable: true }).isString().isLength({ max: 5000 }),
   body('coverUrl').optional({ nullable: true }).isURL({ protocols: ['http', 'https'], require_protocol: true }).isLength({ max: 1000 }),
   async (req, res, next) => {
@@ -89,7 +89,8 @@ router.post('/import', authenticate,
       if (req.body.externalId.startsWith('rawg:')) {
         try {
           const details = await getGameDetails(req.body.externalId.slice(5));
-          data = { ...data, title: details.title, platform: details.platform, genre: details.genre, description: details.description, coverUrl: details.coverUrl };
+          // Los metadatos externos también deben respetar VARCHAR(80).
+          data = { ...data, title: details.title, platform: details.platform, genre: String(details.genre || data.genre).slice(0, 80), description: details.description, coverUrl: details.coverUrl };
         } catch { }
       }
       game = await Game.create(data);
