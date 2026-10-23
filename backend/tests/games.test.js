@@ -3,10 +3,11 @@ const assert = require('node:assert/strict');
 const { mockModule, createApp, startServer, makeToken, call } = require('./helpers/setup');
 
 const Game = {};
+let rawgDetails = {};
 mockModule('models', { Game, Recommendation: {}, sequelize: {} });
 mockModule('services/rawg', {
   searchGames: async () => ({}),
-  getGameDetails: async () => ({}),
+  getGameDetails: async () => rawgDetails,
   findGameByTitle: async () => null
 });
 mockModule('services/translation', { translateToSpanish: async text => text });
@@ -33,6 +34,7 @@ describe('Rutas /api/games', () => {
   });
 
   beforeEach(() => {
+    rawgDetails = {};
     Game.findAndCountAll = mock.fn(async () => ({ count: 0, rows: [] }));
     Game.findByPk = mock.fn(async () => null);
     Game.findOne = mock.fn(async () => null);
@@ -211,6 +213,38 @@ describe('Rutas /api/games', () => {
       });
 
       assert.equal(res.status, 400);
+    });
+
+    test('devuelve 400 si el género recibido supera 80 caracteres', async () => {
+      const res = await call(server.baseUrl, 'POST', '/api/games/import', {
+        token: userToken,
+        body: { ...validGame, externalId: 'manual:81', genre: 'A'.repeat(81) }
+      });
+
+      assert.equal(res.status, 400);
+      assert.ok(Array.isArray(res.body.errors));
+      assert.equal(Game.create.mock.callCount(), 0);
+    });
+
+    test('permite importar un género de exactamente 80 caracteres', async () => {
+      const res = await call(server.baseUrl, 'POST', '/api/games/import', {
+        token: userToken,
+        body: { ...validGame, externalId: 'manual:80', genre: 'A'.repeat(80) }
+      });
+
+      assert.equal(res.status, 201);
+      assert.equal(Game.create.mock.calls[0].arguments[0].genre.length, 80);
+    });
+
+    test('limita también a 80 el género recuperado desde RAWG', async () => {
+      rawgDetails = { ...validGame, genre: 'R'.repeat(120) };
+      const res = await call(server.baseUrl, 'POST', '/api/games/import', {
+        token: userToken,
+        body: { ...validGame, externalId: 'rawg:1234' }
+      });
+
+      assert.equal(res.status, 201);
+      assert.equal(Game.create.mock.calls[0].arguments[0].genre, 'R'.repeat(80));
     });
   });
 
